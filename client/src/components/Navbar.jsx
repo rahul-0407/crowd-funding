@@ -1,20 +1,26 @@
-import React, { useState } from 'react'
+import React, { useState, useEffect } from 'react'
 import { Link, useNavigate } from 'react-router-dom';
+import { useActiveAccount, useAutoConnect } from 'thirdweb/react';
 
-// import { useStateContext } from '../context';
+import { useStateContext } from '../context';
 import { CustomButton } from './';
 import { logo, menu, search, thirdweb } from '../assets';
 import { navlinks } from '../constants';
+import { client } from '../lib/client';
 
 const Navbar = () => {
   const navigate = useNavigate();
   const [isActive, setIsActive] = useState('dashboard');
   const [toggleDrawer, setToggleDrawer] = useState(false);
-  // const { connect, address } = useStateContext();
-
-  const connecti = async () => {
-    console.log("hello")
-  }
+  const { connect } = useStateContext();
+  
+  const activeAccount = useActiveAccount();
+  const address = activeAccount?.address;
+  
+  const { data: autoConnected, isLoading } = useAutoConnect({
+    client,
+    timeout: 10000,
+  });
 
   return (
     <div className="flex md:flex-row flex-col-reverse justify-between mb-[35px] gap-6">
@@ -29,11 +35,11 @@ const Navbar = () => {
       <div className="sm:flex hidden flex-row justify-end gap-4">
         <CustomButton 
           btnType="button"
-          title={"0xf19964cd4" ? 'Create a campaign' : 'Connect'}
-          styles={"0xf19964cd4" ? 'bg-[#1dc071]' : 'bg-[#8c6dfd]'}
+          title={isLoading ? 'Connecting...' : (address ? 'Create a campaign' : 'Connect')}
+          styles={address ? 'bg-[#1dc071]' : 'bg-[#8c6dfd]'}
           handleClick={() => {
-            if("0xf19964cd4") navigate('create-campaign')
-            else connecti()
+            if(address) navigate('create-campaign')
+            else if(!isLoading) connect()
           }}
         />
 
@@ -44,7 +50,6 @@ const Navbar = () => {
         </Link>
       </div>
 
-      {/* Small screen navigation */}
         <div className="sm:hidden flex justify-between items-center relative">
         <div className="w-[40px] h-[40px] rounded-[10px] bg-[#2c2f32] flex justify-center items-center cursor-pointer">
             <img src={logo} alt="user" className="w-[60%] h-[60%] object-contain" />
@@ -84,11 +89,11 @@ const Navbar = () => {
             <div className="flex mx-4">
             <CustomButton 
               btnType="button"
-              title={"0xf19964cd4" ? 'Create a campaign' : 'Connect'}
-              styles={"0xf19964cd4" ? 'bg-[#1dc071]' : 'bg-[#8c6dfd]'}
+              title={isLoading ? 'Connecting...' : (address ? 'Create a campaign' : 'Connect')}
+              styles={address ? 'bg-[#1dc071]' : 'bg-[#8c6dfd]'}
               handleClick={() => {
-                if("0xf19964cd4") navigate('create-campaign')
-                else connecti();
+                if(address) navigate('create-campaign')
+                else if(!isLoading) connect();
               }}
             />
             </div>

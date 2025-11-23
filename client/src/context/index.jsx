@@ -1,70 +1,113 @@
-import React, { useContext, createContext } from 'react';
-import { useAddress, useContract, useMetamask, useContractWrite } from '@thirdweb-dev/react';
-import { ethers } from 'ethers';
+import React, { useContext, createContext } from "react";
+import {
+  useActiveAccount,
+  useConnect,
+  useSendTransaction,
+} from "thirdweb/react";
+import { getContract, prepareContractCall, readContract } from "thirdweb";
+import { client } from "../lib/client";
+import { defineChain } from "thirdweb/chains";
+import { toWei, toTokens } from "thirdweb/utils";
+import { createWallet } from "thirdweb/wallets";
 
 const StateContext = createContext();
 
+const contract = getContract({
+  client,
+  chain: defineChain(11155111),
+  address: "0x354b650224F78084A8EC08040ACCD65A548654a0",
+});
+
 export const StateContextProvider = ({ children }) => {
-  const { contract } = useContract('0xf59A1f8251864e1c5a6bD64020e3569be27e6AA9');
-  const { mutateAsync: createCampaign } = useContractWrite(contract, 'createCampaign');
+  const activeAccount = useActiveAccount();
+  const address = activeAccount?.address;
 
-  const address = useAddress();
-  const connect = useMetamask();
+  const { connect } = useConnect();
 
-  const publishCampaign = async (form) => {
-    try {
-      const data = await createCampaign({
-        args: [
-          address,
-          form.title,
-          form.description,
-          form.target,
-          new Date(form.deadline).getTime(),
-          form.image,
-        ],
-      });
-
-      console.log("contract call success", data);
-    } catch (error) {
-      console.log("contract call failure", error);
-    }
-  };
-
-  const getCampaigns = async () => {
-    const campaigns = await contract.call('getCampaigns');
-
-    const parsedCampaings = campaigns.map((campaign, i) => ({
-      owner: campaign.owner,
-      title: campaign.title,
-      description: campaign.description,
-      target: ethers.utils.formatEther(campaign.target.toString()),
-      deadline: campaign.deadline.toNumber(),
-      amountCollected: ethers.utils.formatEther(campaign.amountCollected.toString()),
-      image: campaign.image,
-      pId: i
-    }));
-
-    return parsedCampaings;
-  };
-
-  const getUserCampaigns = async () => {
-    const allCampaigns = await getCampaigns();
-    return allCampaigns.filter((campaign) => campaign.owner === address);
-  };
-
-  const donate = async (pId, amount) => {
-    return await contract.call('donateToCampaign', [pId], {
-      value: ethers.utils.parseEther(amount),
+  const connectWallet = async () => {
+    await connect(async () => {
+      const wallet = createWallet("io.metamask"); 
+      await wallet.connect({ client });
+      return wallet; 
     });
   };
 
-  const getDonations = async (pId) => {
-    const donations = await contract.call('getDonators', [pId]);
-    const numberOfDonations = donations[0].length;
+  const { mutateAsync: sendTransaction } = useSendTransaction();
 
-    return Array.from({ length: numberOfDonations }).map((_, i) => ({
-      donator: donations[0][i],
-      donation: ethers.utils.formatEther(donations[1][i].toString()),
+  const publishCampaign = async (form) => {
+    if (!address) return alert("Connect wallet first");
+
+    const tx = prepareContractCall({
+      contract,
+      method:
+        "function createCampaign(address _owner, string _title, string _description, uint256 _target, uint256 _deadline, string _image)",
+      params: [
+        address,
+        form.title,
+        form.description,
+        toWei(String(form.target)), 
+        BigInt(new Date(form.deadline).getTime()),
+        form.image,
+      ],
+    });
+
+    return await sendTransaction(tx);
+  };
+
+ const getCampaigns = async () => {
+    try {
+      const campaigns = await readContract({
+        contract,
+        method:
+          "function getCampaigns() view returns ((address owner, string title, string description, uint256 target, uint256 deadline, uint256 amountCollected, string image, address[] donators, uint256[] donations)[])",
+        params: [],
+      });
+
+      console.log("Fetched campaigns:", campaigns);
+
+      return campaigns.map((c, i) => ({
+        owner: c.owner,
+        title: c.title,
+        description: c.description,
+        target: toTokens(c.target, 18),
+        deadline: Number(c.deadline),
+        amountCollected: toTokens(c.amountCollected, 18),
+        image: c.image,
+        pId: i,
+      }));
+    } catch (err) {
+      console.error("Error fetching campaigns:", err);
+      return [];
+    }
+  };
+
+
+  const getUserCampaigns = async () => {
+    const all = await getCampaigns();
+    return all.filter((c) => c.owner.toLowerCase() === address?.toLowerCase());
+  };
+
+  const donate = async (pId, amount) => {
+    const tx = prepareContractCall({
+      contract,
+      method: "function donateToCampaign(uint256 _id) payable",
+      params: [BigInt(pId)],
+      value: toWei(amount), // ✅ convert ETH → wei
+    });
+
+    return await sendTransaction(tx);
+  };
+
+  const getDonations = async (pId) => {
+    const [donators, donations] = await readContract({
+      contract,
+      method: "getDonators",
+      params: [BigInt(pId)],
+    });
+
+    return donators.map((addr, i) => ({
+      donator: addr,
+      donation: toTokens(donations[i], 18),
     }));
   };
 
@@ -73,12 +116,12 @@ export const StateContextProvider = ({ children }) => {
       value={{
         address,
         contract,
-        connect,
+        connect: connectWallet,
         createCampaign: publishCampaign,
         getCampaigns,
         getUserCampaigns,
         donate,
-        getDonations
+        getDonations,
       }}
     >
       {children}
