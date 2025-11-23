@@ -6,7 +6,6 @@ A **transparent, trustless, and blockchain-powered crowdfunding application** bu
 
 ## 📸 Application Screenshots
 
-(Add real images later)
 
 ![Home Page](./screenshots/home.png)  
 *Browse Active Campaigns*
