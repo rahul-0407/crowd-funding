@@ -17,7 +17,6 @@ const Home = () => {
   }
 
   useEffect(() => {
-    console.log("hoii")
     if(contract) fetchCampaigns();
   }, [address, contract]);
 

@@ -99,18 +99,20 @@ export const StateContextProvider = ({ children }) => {
   };
 
   const getDonations = async (pId) => {
-    const [donators, donations] = await readContract({
+    const data = await readContract({
       contract,
-      method: "getDonators",
+      method:
+        "function getDonators(uint256 _id) view returns (address[] memory, uint256[] memory)",
       params: [BigInt(pId)],
     });
+
+    const [donators, donations] = data;
 
     return donators.map((addr, i) => ({
       donator: addr,
       donation: toTokens(donations[i], 18),
     }));
   };
-
   return (
     <StateContext.Provider
       value={{
